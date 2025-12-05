@@ -1,0 +1,27 @@
+{
+  "name": "torrtv",
+  "description": "IPTV Wrapper for TorrServer",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "node index.js",
+    "start": "node index.js",
+    "deploy": "vercel",
+    "dev": "nodemon index.js",
+    "docker-push:latest": "docker buildx build --tag=jarvisnexus/torrtv:latest --platform=linux/arm64,linux/amd64 --push ."
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.0.1",
+    "axios": "^1.13.2",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "fastify": "^5.6.2",
+    "node-fetch": "^3.3.2",
+    "nodemon": "^3.1.4",
+    "webdav-server": "^2.6.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "vercel": "^32.3.0"
+  }
+}
