@@ -19,14 +19,14 @@ function parseFiles(torrent) {
     if (torrent.file_stats && Array.isArray(torrent.file_stats)) {
       return torrent.file_stats;
     }
-    
+
     if (torrent.data) {
       const parsedData = JSON.parse(torrent.data);
       if (parsedData.TorrServer && parsedData.TorrServer.Files) {
         return parsedData.TorrServer.Files;
       }
     }
-    
+
     return [];
   } catch (error) {
     fastify.log.error(`Error parsing files for torrent ${torrent.hash}:`, error);
@@ -35,7 +35,7 @@ function parseFiles(torrent) {
 }
 
 function getCategory(category) {
-  switch(category) {
+  switch (category) {
     case "movie":
       return "Movies";
     case "tv":
@@ -48,6 +48,13 @@ function getCategory(category) {
       return "Others";
   }
 }
+
+fastify.get('/', async (request, reply) => {
+  return {
+    success: true,
+    message: "Application is running"
+  };
+});
 
 fastify.get('/torrents/:hash?', async (request, reply) => {
   try {
@@ -73,7 +80,7 @@ fastify.get('/torrents/:hash?', async (request, reply) => {
     return {
       error: 'Failed to fetch torrents',
       message: error.message,
-      hint: error.code === 'ECONNREFUSED' 
+      hint: error.code === 'ECONNREFUSED'
         ? `Cannot connect to TorrServer at ${TORRSERVER_URL}. Is TorrServer running?`
         : undefined
     };
@@ -83,50 +90,50 @@ fastify.get('/torrents/:hash?', async (request, reply) => {
 fastify.get('/playlist/all', async (request, reply) => {
   try {
     const torrents = await torrServerClient.listTorrents();
-    
+
     let m3uContent = '#EXTM3U\n';
-    
+
     for (const torrent of torrents) {
       const files = parseFiles(torrent);
-      
+
       if (files.length === 0) {
         continue;
       }
-      
+
       const torrentTitle = torrent.title || torrent.name || 'Unknown';
-      
+
       for (const file of files) {
         const streamUrl = torrServerClient.getStreamURL(torrent.hash, file.id);
         const fileName = file.path.split('/').pop();
-        
+
         m3uContent += `#EXTINF:-1`;
-        
+
         if (torrent.poster) {
           m3uContent += ` tvg-logo="${torrent.poster}"`;
         }
-        
+
         if (torrent.category) {
           m3uContent += ` group-title="${getCategory(torrent.category)}"`;
         }
-        
+
         m3uContent += ` tvg-name="${fileName}"`;
         m3uContent += `,${torrentTitle}\n`;
         m3uContent += `${streamUrl}\n`;
       }
     }
-    
+
     reply
       .type('audio/x-mpegurl; charset=utf-8')
       .header('Content-Disposition', 'attachment; filename="TorrServer.m3u"')
       .send(m3uContent);
-      
+
   } catch (error) {
     fastify.log.error(error);
     reply.code(500);
     return {
       error: 'Failed to generate playlist',
       message: error.message,
-      hint: error.code === 'ECONNREFUSED' 
+      hint: error.code === 'ECONNREFUSED'
         ? `Cannot connect to TorrServer at ${TORRSERVER_URL}. Is TorrServer running?`
         : undefined
     };
@@ -137,7 +144,7 @@ fastify.get('/playlist/:hash', async (request, reply) => {
   try {
     const { hash } = request.params;
     const torrent = await torrServerClient.getTorrent(hash);
-    
+
     if (!torrent) {
       reply.code(404);
       return {
@@ -145,9 +152,9 @@ fastify.get('/playlist/:hash', async (request, reply) => {
         hash: hash
       };
     }
-    
+
     const files = parseFiles(torrent);
-    
+
     if (files.length === 0) {
       reply.code(404);
       return {
@@ -155,32 +162,32 @@ fastify.get('/playlist/:hash', async (request, reply) => {
         hash: hash
       };
     }
-    
+
     let m3uContent = '#EXTM3U\n';
     const torrentTitle = torrent.title || torrent.name || 'Unknown';
-    
+
     for (const file of files) {
       const streamUrl = torrServerClient.getStreamURL(hash, file.id);
       const fileName = file.path.split('/').pop();
-      
+
       m3uContent += `#EXTINF:-1`;
-      
+
       if (torrent.poster) {
         m3uContent += ` tvg-logo="${torrent.poster}"`;
       }
-      
+
       m3uContent += ` tvg-name="${fileName}"`;
       m3uContent += `,${torrentTitle}\n`;
       m3uContent += `${streamUrl}\n`;
     }
-    
+
     const safeFileName = torrentTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    
+
     reply
       .type('audio/x-mpegurl; charset=utf-8')
       .header('Content-Disposition', `attachment; filename="${safeFileName}.m3u"`)
       .send(m3uContent);
-      
+
   } catch (error) {
     fastify.log.error(error);
     reply.code(500);
@@ -194,7 +201,7 @@ fastify.get('/playlist/:hash', async (request, reply) => {
 const start = async () => {
   try {
     await fastify.listen({ port: PORT, host: HOST });
-    
+
     try {
       await torrServerClient.echo();
       fastify.log.info(`
