@@ -1,7 +1,7 @@
 name: 'torrtv'
 version: '3'
 services:
-  app:
+  torrtv:
     build:
       context: .
       dockerfile: Dockerfile
