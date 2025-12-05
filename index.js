@@ -56,6 +56,27 @@ fastify.get('/', async (request, reply) => {
   };
 });
 
+fastify.get('/ping', async (request, reply) => {
+  return {
+    success: true,
+    message: "Ping is working!"
+  };
+});
+
+fastify.get('/hello', async (request, reply) => {
+  return {
+    success: true,
+    message: "Hello from TorrTV"
+  };
+});
+
+fastify.get('/echo', async (request, reply) => {
+  return {
+    success: true,
+    message: "Hello!"
+  };
+});
+
 fastify.get('/torrents/:hash?', async (request, reply) => {
   try {
     const { hash } = request.params;
