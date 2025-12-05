@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const TORRSERVER_URL = process.env.TORRSERVER_URL || 'http://localhost:5665';
+const TORRSERVER_URL = process.env.TORRSERVER_URL || 'http://192.168.1.10:5665';
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
