@@ -14,7 +14,10 @@ TorrServer's native playlist endpoint is not compatible with most IPTV players. 
 name: 'torrtv'
 version: '3'
 services:
-  app:
+  torrtv:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: jarvisnexus/torrtv:latest
     container_name: torrtv
     ports:
@@ -22,6 +25,7 @@ services:
     environment:
       - PORT=3000
       - TORRSERVER_URL=http://192.168.1.10:5665
+      - HOST=0.0.0.0
     restart: always
 ```
 
