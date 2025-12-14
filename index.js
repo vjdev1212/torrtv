@@ -195,7 +195,7 @@ fastify.get('/playlist/all', async (request, reply) => {
           m3uContent += ` group-title="${getCategory(torrent.category)}"`;
         }
 
-        const fileIndex = videoFiles.length > 1 ? '' : `: ${file.id}`;
+        const fileIndex = videoFiles.length > 1 ? `: ${file.id}` : '';
 
         m3uContent += ` tvg-name="${fileName}"`;
         m3uContent += `,${torrentTitle}${fileIndex}\n`;
