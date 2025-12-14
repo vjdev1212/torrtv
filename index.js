@@ -60,10 +60,10 @@ function getCategory(category) {
 // Middleware to extract TorrServer URL from request
 fastify.addHook('preHandler', (request, reply, done) => {
   // Get URL from query param, header, or use default
-  const url = request.query.url || 
-              request.headers['x-torrserver-url'] || 
-              DEFAULT_TORRSERVER_URL;
-  
+  const url = request.query.url ||
+    request.headers['x-torrserver-url'] ||
+    DEFAULT_TORRSERVER_URL;
+
   request.torrserverUrl = url;
   request.torrserverClient = getTorrServerClient(url);
   done();
@@ -183,8 +183,10 @@ fastify.get('/playlist/all', async (request, reply) => {
           m3uContent += ` group-title="${getCategory(torrent.category)}"`;
         }
 
+        const fileIndex = files.length > 1 ? '' : `: ${file.id}`;
+
         m3uContent += ` tvg-name="${fileName}"`;
-        m3uContent += `,${torrentTitle}: ${file.id}\n`;
+        m3uContent += `,${torrentTitle}${fileIndex}\n`;
         m3uContent += `${streamUrl}\n`;
       }
     }
@@ -239,7 +241,7 @@ fastify.get('/playlist/:hash', async (request, reply) => {
     for (const file of files) {
       const fileName = file.path.split('/').pop();
       const streamUrl = request.torrserverClient.getStreamURL(hash, fileName, file.id);
-      
+
       m3uContent += `#EXTINF:-1`;
 
       if (torrent.poster) {
