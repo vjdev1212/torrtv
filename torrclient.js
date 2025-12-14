@@ -93,12 +93,12 @@ class TorrServerClient {
         return response.data;
     }
 
-    getPlayURL(hash, fileIndex) {
+    getPlayURL(hash, fileIndex = 1) {
         return `${this.baseURL}/play/${hash}/${fileIndex}`;
     }
 
-    getStreamURL(hash, fileIndex) {
-        return `${this.baseURL}/stream?link=${hash}&index=${fileIndex}&play&preload`;
+    getStreamURL(hash, fileName, fileIndex = 1) {
+        return `${this.baseURL}/stream/${fileName}?link=${hash}&index=${fileIndex}&play&preload`;
     }
 
     async streamFile(hash, fileIndex) {

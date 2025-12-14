@@ -124,8 +124,8 @@ fastify.get('/playlist/all', async (request, reply) => {
       const torrentTitle = torrent.title || torrent.name || 'Unknown';
 
       for (const file of files) {
-        const streamUrl = torrServerClient.getStreamURL(torrent.hash, file.id);
         const fileName = file.path.split('/').pop();
+        const streamUrl = torrServerClient.getStreamURL(torrent.hash, fileName, file.id);
 
         m3uContent += `#EXTINF:-1`;
 
@@ -188,9 +188,9 @@ fastify.get('/playlist/:hash', async (request, reply) => {
     const torrentTitle = torrent.title || torrent.name || 'Unknown';
 
     for (const file of files) {
-      const streamUrl = torrServerClient.getStreamURL(hash, file.id);
       const fileName = file.path.split('/').pop();
-
+      const streamUrl = torrServerClient.getStreamURL(hash, fileName, file.id);
+      
       m3uContent += `#EXTINF:-1`;
 
       if (torrent.poster) {
