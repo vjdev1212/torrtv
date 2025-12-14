@@ -4,15 +4,23 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const TORRSERVER_URL = process.env.TORRSERVER_URL || 'http://192.168.1.10:5665';
+const DEFAULT_TORRSERVER_URL = process.env.TORRSERVER_URL || 'http://192.168.1.10:5665';
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 const fastify = Fastify({ logger: true });
 
-const torrServerClient = new TorrServerClient(TORRSERVER_URL, {
-  timeout: 30000
-});
+// Cache TorrServer clients by URL
+const clientCache = new Map();
+
+function getTorrServerClient(url) {
+  if (!clientCache.has(url)) {
+    clientCache.set(url, new TorrServerClient(url, {
+      timeout: 30000
+    }));
+  }
+  return clientCache.get(url);
+}
 
 function parseFiles(torrent) {
   try {
@@ -49,32 +57,67 @@ function getCategory(category) {
   }
 }
 
+// Middleware to extract TorrServer URL from request
+fastify.addHook('preHandler', (request, reply, done) => {
+  // Get URL from query param, header, or use default
+  const url = request.query.url || 
+              request.headers['x-torrserver-url'] || 
+              DEFAULT_TORRSERVER_URL;
+  
+  request.torrserverUrl = url;
+  request.torrserverClient = getTorrServerClient(url);
+  done();
+});
+
 fastify.get('/', async (request, reply) => {
   return {
     success: true,
-    message: "Application is running"
+    message: "TorrTV API is running",
+    defaultUrl: DEFAULT_TORRSERVER_URL,
+    usage: {
+      query: "Add ?url=<torrserver-url> to your requests",
+      header: "Or use X-TorrServer-URL header",
+      example: `/torrents?url=http://192.168.1.10:5665`
+    }
   };
 });
 
 fastify.get('/ping', async (request, reply) => {
   return {
     success: true,
-    message: "Ping is working!"
+    message: "Ping is working!",
+    torrserverUrl: request.torrserverUrl
   };
 });
 
 fastify.get('/hello', async (request, reply) => {
   return {
     success: true,
-    message: "Hello from TorrTV"
+    message: "Hello from TorrTV",
+    torrserverUrl: request.torrserverUrl
   };
 });
 
 fastify.get('/echo', async (request, reply) => {
-  return {
-    success: true,
-    message: "Hello!"
-  };
+  try {
+    await request.torrserverClient.echo();
+    return {
+      success: true,
+      message: "Echo successful!",
+      torrserverUrl: request.torrserverUrl
+    };
+  } catch (error) {
+    reply.code(500);
+    return {
+      success: false,
+      error: 'Echo failed',
+      message: error.message,
+      torrserverUrl: request.torrserverUrl,
+      hint: error.code === 'ECONNREFUSED'
+        ? `Cannot connect to TorrServer at ${request.torrserverUrl}. Is TorrServer running?`
+        : undefined
+    };
+  }
 });
 
 fastify.get('/torrents/:hash?', async (request, reply) => {
@@ -82,15 +125,17 @@ fastify.get('/torrents/:hash?', async (request, reply) => {
     const { hash } = request.params;
 
     if (hash) {
-      const torrent = await torrServerClient.getTorrent(hash);
+      const torrent = await request.torrserverClient.getTorrent(hash);
       return {
         success: true,
+        torrserverUrl: request.torrserverUrl,
         torrent: torrent
       };
     } else {
-      const torrents = await torrServerClient.listTorrents();
+      const torrents = await request.torrserverClient.listTorrents();
       return {
         success: true,
+        torrserverUrl: request.torrserverUrl,
         count: torrents.length,
         torrents: torrents
       };
@@ -101,8 +146,9 @@ fastify.get('/torrents/:hash?', async (request, reply) => {
     return {
       error: 'Failed to fetch torrents',
       message: error.message,
+      torrserverUrl: request.torrserverUrl,
       hint: error.code === 'ECONNREFUSED'
-        ? `Cannot connect to TorrServer at ${TORRSERVER_URL}. Is TorrServer running?`
+        ? `Cannot connect to TorrServer at ${request.torrserverUrl}. Is TorrServer running?`
         : undefined
     };
   }
@@ -110,7 +156,7 @@ fastify.get('/torrents/:hash?', async (request, reply) => {
 
 fastify.get('/playlist/all', async (request, reply) => {
   try {
-    const torrents = await torrServerClient.listTorrents();
+    const torrents = await request.torrserverClient.listTorrents();
 
     let m3uContent = '#EXTM3U\n';
 
@@ -125,7 +171,7 @@ fastify.get('/playlist/all', async (request, reply) => {
 
       for (const file of files) {
         const fileName = file.path.split('/').pop();
-        const streamUrl = torrServerClient.getStreamURL(torrent.hash, fileName, file.id);
+        const streamUrl = request.torrserverClient.getStreamURL(torrent.hash, fileName, file.id);
 
         m3uContent += `#EXTINF:-1`;
 
@@ -154,8 +200,9 @@ fastify.get('/playlist/all', async (request, reply) => {
     return {
       error: 'Failed to generate playlist',
       message: error.message,
+      torrserverUrl: request.torrserverUrl,
       hint: error.code === 'ECONNREFUSED'
-        ? `Cannot connect to TorrServer at ${TORRSERVER_URL}. Is TorrServer running?`
+        ? `Cannot connect to TorrServer at ${request.torrserverUrl}. Is TorrServer running?`
         : undefined
     };
   }
@@ -164,13 +211,14 @@ fastify.get('/playlist/all', async (request, reply) => {
 fastify.get('/playlist/:hash', async (request, reply) => {
   try {
     const { hash } = request.params;
-    const torrent = await torrServerClient.getTorrent(hash);
+    const torrent = await request.torrserverClient.getTorrent(hash);
 
     if (!torrent) {
       reply.code(404);
       return {
         error: 'Torrent not found',
-        hash: hash
+        hash: hash,
+        torrserverUrl: request.torrserverUrl
       };
     }
 
@@ -180,7 +228,8 @@ fastify.get('/playlist/:hash', async (request, reply) => {
       reply.code(404);
       return {
         error: 'Torrent has no files',
-        hash: hash
+        hash: hash,
+        torrserverUrl: request.torrserverUrl
       };
     }
 
@@ -189,7 +238,7 @@ fastify.get('/playlist/:hash', async (request, reply) => {
 
     for (const file of files) {
       const fileName = file.path.split('/').pop();
-      const streamUrl = torrServerClient.getStreamURL(hash, fileName, file.id);
+      const streamUrl = request.torrserverClient.getStreamURL(hash, fileName, file.id);
       
       m3uContent += `#EXTINF:-1`;
 
@@ -214,7 +263,8 @@ fastify.get('/playlist/:hash', async (request, reply) => {
     reply.code(500);
     return {
       error: 'Failed to generate playlist',
-      message: error.message
+      message: error.message,
+      torrserverUrl: request.torrserverUrl
     };
   }
 });
@@ -224,34 +274,40 @@ const start = async () => {
     await fastify.listen({ port: PORT, host: HOST });
 
     try {
-      await torrServerClient.echo();
+      const defaultClient = getTorrServerClient(DEFAULT_TORRSERVER_URL);
+      await defaultClient.echo();
       fastify.log.info(`
 =================================================
 Server listening on http://${HOST}:${PORT}
-TorrServer URL: ${TORRSERVER_URL}
+Default TorrServer URL: ${DEFAULT_TORRSERVER_URL}
 TorrServer Status: ✓ Connected
 
 Available endpoints:
-  GET /torrents           - Get all torrents
-  GET /torrents/:hash     - Get single torrent
-  GET /playlist/all       - Get M3U playlist for all torrents
-  GET /playlist/:hash     - Get M3U playlist for specific torrent
+  GET /torrents?url=<url>      - Get all torrents
+  GET /torrents/:hash?url=<url> - Get single torrent
+  GET /playlist/all?url=<url>  - Get M3U playlist for all torrents
+  GET /playlist/:hash?url=<url> - Get M3U playlist for specific torrent
+
+Usage: Add ?url=<torrserver-url> to any request
+       Or use X-TorrServer-URL header
+       If not provided, uses default: ${DEFAULT_TORRSERVER_URL}
 =================================================
       `);
     } catch (torrError) {
       fastify.log.warn(`
 =================================================
 Server listening on http://${HOST}:${PORT}
-TorrServer URL: ${TORRSERVER_URL}
+Default TorrServer URL: ${DEFAULT_TORRSERVER_URL}
 TorrServer Status: ✗ NOT CONNECTED
 
-WARNING: Cannot connect to TorrServer!
+WARNING: Cannot connect to default TorrServer!
 Please verify:
   1. TorrServer is running
-  2. TorrServer address is correct: ${TORRSERVER_URL}
+  2. TorrServer address is correct: ${DEFAULT_TORRSERVER_URL}
   3. No firewall blocking the connection
 
-Server will continue running but API calls will fail.
+Server will continue running. You can specify different TorrServer URLs
+using ?url=<torrserver-url> query parameter.
 =================================================
       `);
     }
