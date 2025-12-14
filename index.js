@@ -138,7 +138,7 @@ fastify.get('/playlist/all', async (request, reply) => {
         }
 
         m3uContent += ` tvg-name="${fileName}"`;
-        m3uContent += `,${torrentTitle}\n`;
+        m3uContent += `,${torrentTitle}: ${file.id}\n`;
         m3uContent += `${streamUrl}\n`;
       }
     }
