@@ -57,6 +57,12 @@ function getCategory(category) {
   }
 }
 
+function isVideoFile(fileName) {
+  const videoExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ts'];
+  const ext = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+  return videoExtensions.includes(ext);
+}
+
 // Middleware to extract TorrServer URL from request
 fastify.addHook('preHandler', (request, reply, done) => {
   // Get URL from query param, header, or use default
@@ -169,7 +175,13 @@ fastify.get('/playlist/all', async (request, reply) => {
 
       const torrentTitle = torrent.title || torrent.name || 'Unknown';
 
-      for (const file of files) {
+      // Filter to only include video files
+      const videoFiles = files.filter(file => {
+        const fileName = file.path.split('/').pop();
+        return isVideoFile(fileName);
+      });
+
+      for (const file of videoFiles) {
         const fileName = file.path.split('/').pop();
         const streamUrl = request.torrserverClient.getStreamURL(torrent.hash, fileName, file.id);
 
@@ -183,7 +195,7 @@ fastify.get('/playlist/all', async (request, reply) => {
           m3uContent += ` group-title="${getCategory(torrent.category)}"`;
         }
 
-        const fileIndex = files.length > 1 ? '' : `: ${file.id}`;
+        const fileIndex = videoFiles.length > 1 ? '' : `: ${file.id}`;
 
         m3uContent += ` tvg-name="${fileName}"`;
         m3uContent += `,${torrentTitle}${fileIndex}\n`;
@@ -238,7 +250,22 @@ fastify.get('/playlist/:hash', async (request, reply) => {
     let m3uContent = '#EXTM3U\n';
     const torrentTitle = torrent.title || torrent.name || 'Unknown';
 
-    for (const file of files) {
+    // Filter to only include video files
+    const videoFiles = files.filter(file => {
+      const fileName = file.path.split('/').pop();
+      return isVideoFile(fileName);
+    });
+
+    if (videoFiles.length === 0) {
+      reply.code(404);
+      return {
+        error: 'Torrent has no video files',
+        hash: hash,
+        torrserverUrl: request.torrserverUrl
+      };
+    }
+
+    for (const file of videoFiles) {
       const fileName = file.path.split('/').pop();
       const streamUrl = request.torrserverClient.getStreamURL(hash, fileName, file.id);
 
