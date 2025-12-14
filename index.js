@@ -63,6 +63,28 @@ function isVideoFile(fileName) {
   return videoExtensions.includes(ext);
 }
 
+function getEpisodeLabel(fileName, fileId) {
+  // Common patterns for season/episode in torrent filenames
+  const patterns = [
+    /[Ss](\d{1,2})[Ee](\d{1,2})/,           // S01E01 or s01e01
+    /[Ss]eason\s*(\d{1,2})\s*[Ee]pisode\s*(\d{1,2})/i, // Season 1 Episode 1
+    /(\d{1,2})[xX](\d{1,2})/,               // 1x01
+    /[Ss](\d{1,2})\s*-\s*[Ee]?(\d{1,2})/,   // S01-E01 or S01-01
+  ];
+
+  for (const pattern of patterns) {
+    const match = fileName.match(pattern);
+    if (match) {
+      const season = match[1].padStart(2, '0');
+      const episode = match[2].padStart(2, '0');
+      return `S${season}E${episode}`;
+    }
+  }
+
+  // If no pattern found, return the file ID
+  return fileId;
+}
+
 // Middleware to extract TorrServer URL from request
 fastify.addHook('preHandler', (request, reply, done) => {
   // Get URL from query param, header, or use default
@@ -195,8 +217,10 @@ fastify.get('/playlist/all', async (request, reply) => {
           m3uContent += ` group-title="${getCategory(torrent.category)}"`;
         }
 
+        const episodeLabel = videoFiles.length > 1 ? `: ${getEpisodeLabel(fileName, file.id)}` : '';
+
         m3uContent += ` tvg-name="${fileName}"`;
-        m3uContent += `,${fileName}\n`;
+        m3uContent += `,${torrentTitle}${episodeLabel}\n`;
         m3uContent += `${streamUrl}\n`;
       }
     }
