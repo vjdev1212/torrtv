@@ -171,6 +171,3 @@ Or use a specific torrent:
 ```
 http://192.168.1.10:3000/playlist/{hash}?url=http://your-torrserver:5665
 ```
-## License
-
-MIT
