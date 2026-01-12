@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: jarvisnexus/torrtv:latest
+    image: vjdev1212/torrtv:latest
     container_name: torrtv
     ports:
       - "3000:3000"
