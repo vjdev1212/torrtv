@@ -118,7 +118,10 @@ class TorrServerClient {
     }
 
     getStreamURL(hash, fileName, fileIndex = 1) {
-        let url = `${this.baseURL}/stream/${fileName}?link=${hash}&index=${fileIndex}&play`;
+        const encodedFileName = encodeURIComponent(fileName);
+        const encodedHash = encodeURIComponent(hash);
+        
+        let url = `${this.baseURL}/stream/${encodedFileName}?link=${encodedHash}&index=${fileIndex}&play`;
         
         if (this.preload) {
             url += '&preload';
