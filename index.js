@@ -192,7 +192,7 @@ fastify.get('/torrents/:category', async (request, reply) => {
       reply.code(400);
       return {
         error: 'Invalid category',
-        message: `Category '${category}' is not valid. Allowed categories: movie, tv, music, other`,
+        message: `Category '${category}' is not valid. Allowed categories: all, movie, tv, music, other`,
         torrserverUrl: request.torrserverUrl
       };
     }
@@ -293,7 +293,7 @@ fastify.get('/playlist/:category', async (request, reply) => {
       reply.code(400);
       return {
         error: 'Invalid category',
-        message: `Category '${category}' is not valid. Allowed categories: movie, tv, music, other`,
+        message: `Category '${category}' is not valid. Allowed categories: all, movie, tv, music, other`,
         torrserverUrl: request.torrserverUrl
       };
     }
@@ -377,7 +377,7 @@ Available endpoints:
   GET /torrents
       - Get all torrents
   GET /torrents/:category
-      - Get torrents filtered by category (movie|tv|music|other)
+      - Get torrents filtered by category (all|movie|tv|music|other)
   GET /playlist/all
       - Get M3U playlist for all torrents
   GET /playlist/:category/all
@@ -385,7 +385,7 @@ Available endpoints:
 
 Usage: 
   - Add ?url=<torrserver-url> to specify TorrServer URL
-  - Use /:category path parameter to filter (movie|tv|music|other)
+  - Use /:category path parameter to filter (all|movie|tv|music|other)
   - Or use X-TorrServer-URL header
   - If not provided, uses default: ${DEFAULT_TORRSERVER_URL}
 
