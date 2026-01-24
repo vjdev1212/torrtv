@@ -44,6 +44,8 @@ function parseFiles(torrent) {
 
 function getCategory(category) {
   switch (category) {
+    case "all":
+      return "All"
     case "movie":
       return "Movies";
     case "tv":
@@ -158,7 +160,7 @@ fastify.get('/echo', async (request, reply) => {
 fastify.get('/torrents', async (request, reply) => {
   try {
     const torrents = await request.torrserverClient.listTorrents();
-    
+
     return {
       success: true,
       torrserverUrl: request.torrserverUrl,
@@ -184,7 +186,7 @@ fastify.get('/torrents', async (request, reply) => {
 fastify.get('/torrents/:category', async (request, reply) => {
   try {
     const { category } = request.params;
-    
+
     // Validate category
     if (!isValidCategory(category)) {
       reply.code(400);
@@ -194,9 +196,9 @@ fastify.get('/torrents/:category', async (request, reply) => {
         torrserverUrl: request.torrserverUrl
       };
     }
-    
+
     const torrents = await request.torrserverClient.listTorrents(category);
-    
+
     return {
       success: true,
       torrserverUrl: request.torrserverUrl,
@@ -285,7 +287,7 @@ fastify.get('/playlist/all', async (request, reply) => {
 fastify.get('/playlist/:category', async (request, reply) => {
   try {
     const { category } = request.params;
-    
+
     // Validate category
     if (!isValidCategory(category)) {
       reply.code(400);
@@ -295,7 +297,7 @@ fastify.get('/playlist/:category', async (request, reply) => {
         torrserverUrl: request.torrserverUrl
       };
     }
-    
+
     const torrents = await request.torrserverClient.listTorrents(category);
 
     let m3uContent = '#EXTM3U\n';
