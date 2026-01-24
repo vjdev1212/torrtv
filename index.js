@@ -57,6 +57,8 @@ function getCategory(category) {
   }
 }
 
+
+
 function isVideoFile(fileName) {
   const videoExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ts'];
   const ext = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
@@ -105,7 +107,8 @@ fastify.get('/', async (request, reply) => {
     usage: {
       query: "Add ?url=<torrserver-url> to your requests",
       header: "Or use X-TorrServer-URL header",
-      example: `/torrents?url=http://192.168.1.10:5665`
+      category: "Use /:category path param to filter by category (movie|tv|music|other)",
+      example: `/torrents/movie?url=http://192.168.1.10:5665`
     }
   };
 });
@@ -148,22 +151,35 @@ fastify.get('/echo', async (request, reply) => {
   }
 });
 
-fastify.get('/torrents/:hash?', async (request, reply) => {
+fastify.get('/torrents/:category?/:hash?', async (request, reply) => {
   try {
-    const { hash } = request.params;
+    const { hash, category } = request.params;
 
-    if (hash) {
+    if (hash && !category) {
+      // If hash is provided as first param (no category)
       const torrent = await request.torrserverClient.getTorrent(hash);
       return {
         success: true,
         torrserverUrl: request.torrserverUrl,
         torrent: torrent
       };
-    } else {
-      const torrents = await request.torrserverClient.listTorrents();
+    } else if (hash && category) {
+      // If both category and hash are provided
+      const torrent = await request.torrserverClient.getTorrent(hash);
       return {
         success: true,
         torrserverUrl: request.torrserverUrl,
+        category: category,
+        torrent: torrent
+      };
+    } else {
+      // List torrents, optionally filtered by category
+      const torrents = await request.torrserverClient.listTorrents(category);
+      
+      return {
+        success: true,
+        torrserverUrl: request.torrserverUrl,
+        category: category || 'all',
         count: torrents.length,
         torrents: torrents
       };
@@ -182,9 +198,10 @@ fastify.get('/torrents/:hash?', async (request, reply) => {
   }
 });
 
-fastify.get('/playlist/all', async (request, reply) => {
+fastify.get('/playlist/:category?/all', async (request, reply) => {
   try {
-    const torrents = await request.torrserverClient.listTorrents();
+    const { category } = request.params;
+    const torrents = await request.torrserverClient.listTorrents(category);
 
     let m3uContent = '#EXTM3U\n';
 
@@ -225,9 +242,11 @@ fastify.get('/playlist/all', async (request, reply) => {
       }
     }
 
+    const filename = category ? `TorrServer_${category}.m3u` : 'TorrServer.m3u';
+
     reply
       .type('audio/x-mpegurl; charset=utf-8')
-      .header('Content-Disposition', 'attachment; filename="TorrServer.m3u"')
+      .header('Content-Disposition', `attachment; filename="${filename}"`)
       .send(m3uContent);
 
   } catch (error) {
@@ -244,9 +263,9 @@ fastify.get('/playlist/all', async (request, reply) => {
   }
 });
 
-fastify.get('/playlist/:hash', async (request, reply) => {
+fastify.get('/playlist/:category/:hash', async (request, reply) => {
   try {
-    const { hash } = request.params;
+    const { hash, category } = request.params;
     const torrent = await request.torrserverClient.getTorrent(hash);
 
     if (!torrent) {
@@ -334,14 +353,26 @@ Default TorrServer URL: ${DEFAULT_TORRSERVER_URL}
 TorrServer Status: ✓ Connected
 
 Available endpoints:
-  GET /torrents?url=<url>      - Get all torrents
-  GET /torrents/:hash?url=<url> - Get single torrent
-  GET /playlist/all?url=<url>  - Get M3U playlist for all torrents
-  GET /playlist/:hash?url=<url> - Get M3U playlist for specific torrent
+  GET /torrents/:category?/:hash?
+      - Get all torrents or filter by category (movie|tv|music|other)
+      - Get single torrent by hash
+  GET /playlist/:category?/all
+      - Get M3U playlist for all torrents or filtered by category
+  GET /playlist/:category/:hash
+      - Get M3U playlist for specific torrent
 
-Usage: Add ?url=<torrserver-url> to any request
-       Or use X-TorrServer-URL header
-       If not provided, uses default: ${DEFAULT_TORRSERVER_URL}
+Usage: 
+  - Add ?url=<torrserver-url> to specify TorrServer URL
+  - Use /:category path parameter to filter (movie|tv|music|other)
+  - Or use X-TorrServer-URL header
+  - If not provided, uses default: ${DEFAULT_TORRSERVER_URL}
+
+Examples:
+  /torrents/movie
+  /torrents/movie/:hash
+  /playlist/tv/all
+  /playlist/movie/:hash
+  /torrents?url=http://192.168.1.10:5665
 =================================================
       `);
     } catch (torrError) {

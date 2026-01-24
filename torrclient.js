@@ -1,6 +1,9 @@
 import axios from 'axios';
 import FormData from 'form-data';
 import fs from 'fs';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 class TorrServerClient {
     constructor(baseURL, options = {}) {
@@ -9,6 +12,9 @@ class TorrServerClient {
             baseURL: this.baseURL,
             timeout: options.timeout || 30000
         });
+        this.preload = options.preload !== undefined 
+            ? options.preload 
+            : (process.env.PRELOAD === 'true');
     }
 
     async echo() {
@@ -20,10 +26,17 @@ class TorrServerClient {
         await this.client.get('/shutdown');
     }
 
-    async listTorrents() {
-        const response = await this.client.post('/torrents', {
+    async listTorrents(category = null) {
+        const payload = {
             action: 'list'
-        });
+        };
+        
+        // Add category to payload if provided
+        if (category) {
+            payload.category = category;
+        }
+        
+        const response = await this.client.post('/torrents', payload);
         return response.data;
     }
 
@@ -98,7 +111,17 @@ class TorrServerClient {
     }
 
     getStreamURL(hash, fileName, fileIndex = 1) {
-        return `${this.baseURL}/stream/${fileName}?link=${hash}&index=${fileIndex}&play&preload`;
+        const params = new URLSearchParams({
+            link: hash,
+            index: fileIndex,
+            play: ''
+        });
+        
+        if (this.preload) {
+            params.append('preload', '');
+        }
+        
+        return `${this.baseURL}/stream/${fileName}?${params.toString()}`;
     }
 
     async streamFile(hash, fileIndex) {
@@ -126,9 +149,50 @@ class TorrServerClient {
         return response.data;
     }
 
-    async getAllPlaylist() {
+    async getAllPlaylist(category = null) {
         const response = await this.client.get('/playlistall/all.m3u');
-        return response.data;
+        const playlistContent = response.data;
+        
+        // If no category filter, return as is
+        if (!category) {
+            return playlistContent;
+        }
+        
+        // Parse and filter M3U playlist by category
+        const lines = playlistContent.split('\n');
+        const filteredLines = ['#EXTM3U'];
+        const normalizedCategory = category.toLowerCase();
+        const categoryMap = {
+            'movie': 'Movies',
+            'tv': 'TV Shows',
+            'music': 'Music',
+            'other': 'Others',
+            'others': 'Others'
+        };
+        const targetGroup = categoryMap[normalizedCategory];
+        
+        let i = 1; // Skip first #EXTM3U line
+        while (i < lines.length) {
+            const line = lines[i];
+            
+            if (line.startsWith('#EXTINF:')) {
+                const groupMatch = line.match(/group-title="([^"]+)"/);
+                const groupTitle = groupMatch ? groupMatch[1] : null;
+                
+                // Include this entry if it matches the target category
+                if (!targetGroup || groupTitle === targetGroup) {
+                    filteredLines.push(line);
+                    if (i + 1 < lines.length) {
+                        filteredLines.push(lines[i + 1]); // Add the URL line
+                        i += 2;
+                        continue;
+                    }
+                }
+            }
+            i++;
+        }
+        
+        return filteredLines.join('\n');
     }
 
     async getCacheStats(hash, action = 'get') {
