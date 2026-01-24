@@ -339,7 +339,7 @@ fastify.get('/playlist/:category', async (request, reply) => {
       }
     }
 
-    const filename = `TorrServer_${category}.m3u`;
+    const filename = `TorrServer_${getCategory(category)}.m3u`;
 
     reply
       .type('audio/x-mpegurl; charset=utf-8')
