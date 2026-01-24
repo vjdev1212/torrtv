@@ -118,17 +118,13 @@ class TorrServerClient {
     }
 
     getStreamURL(hash, fileName, fileIndex = 1) {
-        const params = new URLSearchParams({
-            link: hash,
-            index: fileIndex,
-            play: ''
-        });
+        let url = `${this.baseURL}/stream/${fileName}?link=${hash}&index=${fileIndex}&play`;
         
         if (this.preload) {
-            params.append('preload', '');
+            url += '&preload';
         }
         
-        return `${this.baseURL}/stream/${fileName}?${params.toString()}`;
+        return url;
     }
 
     async streamFile(hash, fileIndex) {
