@@ -112,7 +112,7 @@ fastify.get('/', async (request, reply) => {
     usage: {
       query: "Add ?url=<torrserver-url> to your requests",
       header: "Or use X-TorrServer-URL header",
-      category: "Use /:category path param to filter by category (movie|tv|music|other)",
+      category: "Use /:category path param to filter by category (all|movie|tv|music|other)",
       example: `/torrents/movie?url=http://192.168.1.10:5665`
     }
   };
