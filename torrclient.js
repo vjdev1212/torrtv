@@ -132,12 +132,6 @@ class TorrServerClient {
         return url;
     }
 
-    getM3UURL(hash, title) {
-        const encodedTitle = encodeURIComponent(title);
-        const encodedHash = encodeURIComponent(hash);
-        return `${this.baseURL}/stream/${encodedTitle}.m3u?link=${encodedHash}&m3u`;
-    }
-
     async streamFile(hash, fileIndex) {
         const response = await this.client.get(`/play/${hash}/${fileIndex}`, {
             responseType: 'stream'

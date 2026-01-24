@@ -22,6 +22,26 @@ function getTorrServerClient(url) {
   return clientCache.get(url);
 }
 
+function parseFiles(torrent) {
+  try {
+    if (torrent.file_stats && Array.isArray(torrent.file_stats)) {
+      return torrent.file_stats;
+    }
+
+    if (torrent.data) {
+      const parsedData = JSON.parse(torrent.data);
+      if (parsedData.TorrServer && parsedData.TorrServer.Files) {
+        return parsedData.TorrServer.Files;
+      }
+    }
+
+    return [];
+  } catch (error) {
+    fastify.log.error(`Error parsing files for torrent ${torrent.hash}:`, error);
+    return [];
+  }
+}
+
 function getCategory(category) {
   switch (category) {
     case "all":
@@ -42,6 +62,34 @@ function getCategory(category) {
 function isValidCategory(category) {
   const validCategories = ['movie', 'tv', 'music', 'other'];
   return validCategories.includes(category.toLowerCase());
+}
+
+function isVideoFile(fileName) {
+  const videoExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ts'];
+  const ext = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+  return videoExtensions.includes(ext);
+}
+
+function getEpisodeLabel(fileName, fileId) {
+  // Common patterns for season/episode in torrent filenames
+  const patterns = [
+    /[Ss](\d{1,2})[Ee](\d{1,2})/,           // S01E01 or s01e01
+    /[Ss]eason\s*(\d{1,2})\s*[Ee]pisode\s*(\d{1,2})/i, // Season 1 Episode 1
+    /(\d{1,2})[xX](\d{1,2})/,               // 1x01
+    /[Ss](\d{1,2})\s*-\s*[Ee]?(\d{1,2})/,   // S01-E01 or S01-01
+  ];
+
+  for (const pattern of patterns) {
+    const match = fileName.match(pattern);
+    if (match) {
+      const season = match[1].padStart(2, '0');
+      const episode = match[2].padStart(2, '0');
+      return `S${season}E${episode}`;
+    }
+  }
+
+  // If no pattern found, return the file ID
+  return fileId;
 }
 
 // Middleware to extract TorrServer URL from request
@@ -180,22 +228,40 @@ fastify.get('/playlist/all', async (request, reply) => {
     let m3uContent = '#EXTM3U\n';
 
     for (const torrent of torrents) {
+      const files = parseFiles(torrent);
+
+      if (files.length === 0) {
+        continue;
+      }
+
       const torrentTitle = torrent.title || torrent.name || 'Unknown';
-      const m3uUrl = request.torrserverClient.getM3UURL(torrent.hash, torrentTitle);
 
-      m3uContent += `#EXTINF:-1`;
+      // Filter to only include video files
+      const videoFiles = files.filter(file => {
+        const fileName = file.path.split('/').pop();
+        return isVideoFile(fileName);
+      });
 
-      if (torrent.poster) {
-        m3uContent += ` tvg-logo="${torrent.poster}"`;
+      for (const file of videoFiles) {
+        const fileName = file.path.split('/').pop();
+        const streamUrl = request.torrserverClient.getStreamURL(torrent.hash, fileName, file.id);
+
+        m3uContent += `#EXTINF:-1`;
+
+        if (torrent.poster) {
+          m3uContent += ` tvg-logo="${torrent.poster}"`;
+        }
+
+        if (torrent.category) {
+          m3uContent += ` group-title="${getCategory(torrent.category)}"`;
+        }
+
+        const episodeLabel = videoFiles.length > 1 ? `: ${getEpisodeLabel(fileName, file.id)}` : '';
+
+        m3uContent += ` tvg-name="${fileName}"`;
+        m3uContent += `,${torrentTitle}${episodeLabel}\n`;
+        m3uContent += `${streamUrl}\n`;
       }
-
-      if (torrent.category) {
-        m3uContent += ` group-title="${getCategory(torrent.category)}"`;
-      }
-
-      m3uContent += ` tvg-name="${torrentTitle}"`;
-      m3uContent += `,${torrentTitle}\n`;
-      m3uContent += `${m3uUrl}\n`;
     }
 
     reply
@@ -237,25 +303,43 @@ fastify.get('/playlist/:category', async (request, reply) => {
     let m3uContent = '#EXTM3U\n';
 
     for (const torrent of torrents) {
+      const files = parseFiles(torrent);
+
+      if (files.length === 0) {
+        continue;
+      }
+
       const torrentTitle = torrent.title || torrent.name || 'Unknown';
-      const m3uUrl = request.torrserverClient.getM3UURL(torrent.hash, torrentTitle);
 
-      m3uContent += `#EXTINF:-1`;
+      // Filter to only include video files
+      const videoFiles = files.filter(file => {
+        const fileName = file.path.split('/').pop();
+        return isVideoFile(fileName);
+      });
 
-      if (torrent.poster) {
-        m3uContent += ` tvg-logo="${torrent.poster}"`;
+      for (const file of videoFiles) {
+        const fileName = file.path.split('/').pop();
+        const streamUrl = request.torrserverClient.getStreamURL(torrent.hash, fileName, file.id);
+
+        m3uContent += `#EXTINF:-1`;
+
+        if (torrent.poster) {
+          m3uContent += ` tvg-logo="${torrent.poster}"`;
+        }
+
+        if (torrent.category) {
+          m3uContent += ` group-title="${getCategory(torrent.category)}"`;
+        }
+
+        const episodeLabel = videoFiles.length > 1 ? `: ${getEpisodeLabel(fileName, file.id)}` : '';
+
+        m3uContent += ` tvg-name="${fileName}"`;
+        m3uContent += `,${torrentTitle}${episodeLabel}\n`;
+        m3uContent += `${streamUrl}\n`;
       }
-
-      if (torrent.category) {
-        m3uContent += ` group-title="${getCategory(torrent.category)}"`;
-      }
-
-      m3uContent += ` tvg-name="${torrentTitle}"`;
-      m3uContent += `,${torrentTitle}\n`;
-      m3uContent += `${m3uUrl}\n`;
     }
 
-    const filename = `TorrServer_${getCategory(category)}.m3u`;
+    const filename = `TorrServer_${category}.m3u`;
 
     reply
       .type('audio/x-mpegurl; charset=utf-8')
@@ -296,7 +380,7 @@ Available endpoints:
       - Get torrents filtered by category (movie|tv|music|other)
   GET /playlist/all
       - Get M3U playlist for all torrents
-  GET /playlist/:category
+  GET /playlist/:category/all
       - Get M3U playlist filtered by category
 
 Usage: 
@@ -309,11 +393,8 @@ Examples:
   /torrents
   /torrents/movie
   /playlist/all
-  /playlist/tv
+  /playlist/tv/all
   /torrents?url=http://192.168.1.10:5665
-
-Note: Playlists now use TorrServer's m3u format which generates
-      sub-playlists on-the-fly for torrents with multiple files.
 =================================================
       `);
     } catch (torrError) {
