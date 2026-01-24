@@ -27,17 +27,24 @@ class TorrServerClient {
     }
 
     async listTorrents(category = null) {
-        const payload = {
+        const response = await this.client.post('/torrents', {
             action: 'list'
-        };
+        });
         
-        // Add category to payload if provided
+        const torrents = response.data;
+        
+        // Filter by category if provided
         if (category) {
-            payload.category = category;
+            const normalizedCategory = category.toLowerCase();
+            return torrents.filter(torrent => {
+                if (!torrent.category) {
+                    return normalizedCategory === 'other';
+                }
+                return torrent.category.toLowerCase() === normalizedCategory;
+            });
         }
         
-        const response = await this.client.post('/torrents', payload);
-        return response.data;
+        return torrents;
     }
 
     async addTorrent(params) {
