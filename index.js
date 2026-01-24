@@ -60,7 +60,7 @@ function getCategory(category) {
 }
 
 function isValidCategory(category) {
-  const validCategories = ['movie', 'tv', 'music', 'other'];
+  const validCategories = ['all', 'movie', 'tv', 'music', 'other'];
   return validCategories.includes(category.toLowerCase());
 }
 
