@@ -57,8 +57,6 @@ function getCategory(category) {
   }
 }
 
-
-
 function isVideoFile(fileName) {
   const videoExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ts'];
   const ext = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
@@ -151,39 +149,18 @@ fastify.get('/echo', async (request, reply) => {
   }
 });
 
-fastify.get('/torrents/:category?/:hash?', async (request, reply) => {
+// Get all torrents
+fastify.get('/torrents', async (request, reply) => {
   try {
-    const { hash, category } = request.params;
-
-    if (hash && !category) {
-      // If hash is provided as first param (no category)
-      const torrent = await request.torrserverClient.getTorrent(hash);
-      return {
-        success: true,
-        torrserverUrl: request.torrserverUrl,
-        torrent: torrent
-      };
-    } else if (hash && category) {
-      // If both category and hash are provided
-      const torrent = await request.torrserverClient.getTorrent(hash);
-      return {
-        success: true,
-        torrserverUrl: request.torrserverUrl,
-        category: category,
-        torrent: torrent
-      };
-    } else {
-      // List torrents, optionally filtered by category
-      const torrents = await request.torrserverClient.listTorrents(category);
-      
-      return {
-        success: true,
-        torrserverUrl: request.torrserverUrl,
-        category: category || 'all',
-        count: torrents.length,
-        torrents: torrents
-      };
-    }
+    const torrents = await request.torrserverClient.listTorrents();
+    
+    return {
+      success: true,
+      torrserverUrl: request.torrserverUrl,
+      category: 'all',
+      count: torrents.length,
+      torrents: torrents
+    };
   } catch (error) {
     fastify.log.error(error);
     reply.code(500);
@@ -198,7 +175,98 @@ fastify.get('/torrents/:category?/:hash?', async (request, reply) => {
   }
 });
 
-fastify.get('/playlist/:category?/all', async (request, reply) => {
+// Get torrents by category
+fastify.get('/torrents/:category', async (request, reply) => {
+  try {
+    const { category } = request.params;
+    const torrents = await request.torrserverClient.listTorrents(category);
+    
+    return {
+      success: true,
+      torrserverUrl: request.torrserverUrl,
+      category: category,
+      count: torrents.length,
+      torrents: torrents
+    };
+  } catch (error) {
+    fastify.log.error(error);
+    reply.code(500);
+    return {
+      error: 'Failed to fetch torrents',
+      message: error.message,
+      torrserverUrl: request.torrserverUrl,
+      hint: error.code === 'ECONNREFUSED'
+        ? `Cannot connect to TorrServer at ${request.torrserverUrl}. Is TorrServer running?`
+        : undefined
+    };
+  }
+});
+
+// Get playlist for all torrents
+fastify.get('/playlist/all', async (request, reply) => {
+  try {
+    const torrents = await request.torrserverClient.listTorrents();
+
+    let m3uContent = '#EXTM3U\n';
+
+    for (const torrent of torrents) {
+      const files = parseFiles(torrent);
+
+      if (files.length === 0) {
+        continue;
+      }
+
+      const torrentTitle = torrent.title || torrent.name || 'Unknown';
+
+      // Filter to only include video files
+      const videoFiles = files.filter(file => {
+        const fileName = file.path.split('/').pop();
+        return isVideoFile(fileName);
+      });
+
+      for (const file of videoFiles) {
+        const fileName = file.path.split('/').pop();
+        const streamUrl = request.torrserverClient.getStreamURL(torrent.hash, fileName, file.id);
+
+        m3uContent += `#EXTINF:-1`;
+
+        if (torrent.poster) {
+          m3uContent += ` tvg-logo="${torrent.poster}"`;
+        }
+
+        if (torrent.category) {
+          m3uContent += ` group-title="${getCategory(torrent.category)}"`;
+        }
+
+        const episodeLabel = videoFiles.length > 1 ? `: ${getEpisodeLabel(fileName, file.id)}` : '';
+
+        m3uContent += ` tvg-name="${fileName}"`;
+        m3uContent += `,${torrentTitle}${episodeLabel}\n`;
+        m3uContent += `${streamUrl}\n`;
+      }
+    }
+
+    reply
+      .type('audio/x-mpegurl; charset=utf-8')
+      .header('Content-Disposition', 'attachment; filename="TorrServer.m3u"')
+      .send(m3uContent);
+
+  } catch (error) {
+    fastify.log.error(error);
+    reply.code(500);
+    return {
+      error: 'Failed to generate playlist',
+      message: error.message,
+      torrserverUrl: request.torrserverUrl,
+      hint: error.code === 'ECONNREFUSED'
+        ? `Cannot connect to TorrServer at ${request.torrserverUrl}. Is TorrServer running?`
+        : undefined
+    };
+  }
+});
+
+// Get playlist for torrents by category
+fastify.get('/playlist/:category/all', async (request, reply) => {
   try {
     const { category } = request.params;
     const torrents = await request.torrserverClient.listTorrents(category);
@@ -242,7 +310,7 @@ fastify.get('/playlist/:category?/all', async (request, reply) => {
       }
     }
 
-    const filename = category ? `TorrServer_${category}.m3u` : 'TorrServer.m3u';
+    const filename = `TorrServer_${category}.m3u`;
 
     reply
       .type('audio/x-mpegurl; charset=utf-8')
@@ -263,82 +331,6 @@ fastify.get('/playlist/:category?/all', async (request, reply) => {
   }
 });
 
-fastify.get('/playlist/:category/:hash', async (request, reply) => {
-  try {
-    const { hash, category } = request.params;
-    const torrent = await request.torrserverClient.getTorrent(hash);
-
-    if (!torrent) {
-      reply.code(404);
-      return {
-        error: 'Torrent not found',
-        hash: hash,
-        torrserverUrl: request.torrserverUrl
-      };
-    }
-
-    const files = parseFiles(torrent);
-
-    if (files.length === 0) {
-      reply.code(404);
-      return {
-        error: 'Torrent has no files',
-        hash: hash,
-        torrserverUrl: request.torrserverUrl
-      };
-    }
-
-    let m3uContent = '#EXTM3U\n';
-    const torrentTitle = torrent.title || torrent.name || 'Unknown';
-
-    // Filter to only include video files
-    const videoFiles = files.filter(file => {
-      const fileName = file.path.split('/').pop();
-      return isVideoFile(fileName);
-    });
-
-    if (videoFiles.length === 0) {
-      reply.code(404);
-      return {
-        error: 'Torrent has no video files',
-        hash: hash,
-        torrserverUrl: request.torrserverUrl
-      };
-    }
-
-    for (const file of videoFiles) {
-      const fileName = file.path.split('/').pop();
-      const streamUrl = request.torrserverClient.getStreamURL(hash, fileName, file.id);
-
-      m3uContent += `#EXTINF:-1`;
-
-      if (torrent.poster) {
-        m3uContent += ` tvg-logo="${torrent.poster}"`;
-      }
-
-      m3uContent += ` tvg-name="${fileName}"`;
-      m3uContent += `,${torrentTitle}\n`;
-      m3uContent += `${streamUrl}\n`;
-    }
-
-    const safeFileName = torrentTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-
-    reply
-      .type('audio/x-mpegurl; charset=utf-8')
-      .header('Content-Disposition', `attachment; filename="${safeFileName}.m3u"`)
-      .send(m3uContent);
-
-  } catch (error) {
-    fastify.log.error(error);
-    reply.code(500);
-    return {
-      error: 'Failed to generate playlist',
-      message: error.message,
-      torrserverUrl: request.torrserverUrl
-    };
-  }
-});
-
 const start = async () => {
   try {
     await fastify.listen({ port: PORT, host: HOST });
@@ -353,13 +345,14 @@ Default TorrServer URL: ${DEFAULT_TORRSERVER_URL}
 TorrServer Status: ✓ Connected
 
 Available endpoints:
-  GET /torrents/:category?/:hash?
-      - Get all torrents or filter by category (movie|tv|music|other)
-      - Get single torrent by hash
-  GET /playlist/:category?/all
-      - Get M3U playlist for all torrents or filtered by category
-  GET /playlist/:category/:hash
-      - Get M3U playlist for specific torrent
+  GET /torrents
+      - Get all torrents
+  GET /torrents/:category
+      - Get torrents filtered by category (movie|tv|music|other)
+  GET /playlist/all
+      - Get M3U playlist for all torrents
+  GET /playlist/:category/all
+      - Get M3U playlist filtered by category
 
 Usage: 
   - Add ?url=<torrserver-url> to specify TorrServer URL
@@ -368,10 +361,10 @@ Usage:
   - If not provided, uses default: ${DEFAULT_TORRSERVER_URL}
 
 Examples:
+  /torrents
   /torrents/movie
-  /torrents/movie/:hash
+  /playlist/all
   /playlist/tv/all
-  /playlist/movie/:hash
   /torrents?url=http://192.168.1.10:5665
 =================================================
       `);
