@@ -8,7 +8,7 @@
     "start": "node index.js",
     "deploy": "vercel",
     "dev": "nodemon index.js",
-    "docker-push:latest": "docker buildx build --tag=vjdev1212/torrtv:latest --platform=linux/arm64,linux/amd64,linux/arm/v7 --push ."
+    "docker-push:latest": "docker buildx build --tag=vjdev1212/torrtv:latest --platform=linux/arm64,linux/amd64 --push ."
   },
   "dependencies": {
     "axios": "^1.13.2",
