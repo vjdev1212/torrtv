@@ -266,7 +266,7 @@ fastify.get('/playlist/all', async (request, reply) => {
 });
 
 // Get playlist for torrents by category
-fastify.get('/playlist/:category/all', async (request, reply) => {
+fastify.get('/playlist/:category', async (request, reply) => {
   try {
     const { category } = request.params;
     const torrents = await request.torrserverClient.listTorrents(category);
