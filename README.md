@@ -26,6 +26,7 @@ services:
       - PORT=3000
       - TORRSERVER_URL=http://192.168.1.10:5665
       - HOST=0.0.0.0
+      - PRELOAD=false
     restart: always
 ```
 
@@ -39,6 +40,7 @@ docker-compose up -d
 - `PORT` - Server port (default: 3000)
 - `TORRSERVER_URL` - Default TorrServer URL (default: http://192.168.1.10:5665)
 - `HOST` - Server host (default: 0.0.0.0)
+- `PRELOAD` - Should preload torrents? (default: false)
 
 ## API Endpoints
 
