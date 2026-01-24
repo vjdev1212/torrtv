@@ -57,6 +57,11 @@ function getCategory(category) {
   }
 }
 
+function isValidCategory(category) {
+  const validCategories = ['movie', 'tv', 'music', 'other'];
+  return validCategories.includes(category.toLowerCase());
+}
+
 function isVideoFile(fileName) {
   const videoExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ts'];
   const ext = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
@@ -179,6 +184,17 @@ fastify.get('/torrents', async (request, reply) => {
 fastify.get('/torrents/:category', async (request, reply) => {
   try {
     const { category } = request.params;
+    
+    // Validate category
+    if (!isValidCategory(category)) {
+      reply.code(400);
+      return {
+        error: 'Invalid category',
+        message: `Category '${category}' is not valid. Allowed categories: movie, tv, music, other`,
+        torrserverUrl: request.torrserverUrl
+      };
+    }
+    
     const torrents = await request.torrserverClient.listTorrents(category);
     
     return {
@@ -269,6 +285,17 @@ fastify.get('/playlist/all', async (request, reply) => {
 fastify.get('/playlist/:category', async (request, reply) => {
   try {
     const { category } = request.params;
+    
+    // Validate category
+    if (!isValidCategory(category)) {
+      reply.code(400);
+      return {
+        error: 'Invalid category',
+        message: `Category '${category}' is not valid. Allowed categories: movie, tv, music, other`,
+        torrserverUrl: request.torrserverUrl
+      };
+    }
+    
     const torrents = await request.torrserverClient.listTorrents(category);
 
     let m3uContent = '#EXTM3U\n';
